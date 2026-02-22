@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TraceX Frontend
 
-## Getting Started
+Professional expense tracking web app built with Next.js (App Router), TypeScript, and Tailwind CSS.
 
-First, run the development server:
+## Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js 18+
+- npm (or yarn/pnpm)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Install dependencies**
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   ```bash
+   npm install
+   ```
 
-## Learn More
+2. **Configure environment**
 
-To learn more about Next.js, take a look at the following resources:
+   Copy the example env file and set your backend URL:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+   ```bash
+   cp .env.example .env.local
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+   Edit `.env.local` and set `NEXT_PUBLIC_API_URL` to your TraceX backend origin (e.g. `http://localhost:3000` or `https://api.example.com`). Use the same origin as your backend; no trailing slash.
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Script              | Description                                                                                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------- |
+| `npm run dev`       | Start development server (default: [http://localhost:3001](http://localhost:3001) if 3000 is backend) |
+| `npm run build`     | Production build                                                                                      |
+| `npm run start`     | Start production server                                                                               |
+| `npm run lint`      | Run ESLint                                                                                            |
+| `npm run format`    | Format with Prettier                                                                                  |
+| `npm run typecheck` | Run TypeScript check                                                                                  |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Pointing to the backend
+
+- Set `NEXT_PUBLIC_API_URL` in `.env.local` to your backend base URL (e.g. `http://localhost:3000`).
+- All API requests use this base URL with the `/api/v1` prefix.
+- See [API-FRONTEND.md](./API-FRONTEND.md) for the full API contract.
+
+## Build
+
+Run `npm run build` to create a production build. Fix any type or lint errors before deploying.
+
+## Security
+
+- All API calls use the base URL from `NEXT_PUBLIC_API_URL`; the auth token is sent only in the `Authorization` header (never in URLs or logs).
+
+## Project structure
+
+- `src/app/` — App Router pages and layouts
+- `src/components/` — Reusable UI components
+- `src/lib/` — API client, utils, types, React Query hooks
