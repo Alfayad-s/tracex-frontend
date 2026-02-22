@@ -8,24 +8,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { LogOut } from "lucide-react";
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   if (!user) return null;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Profile
-        </h1>
-        <p className="text-muted-foreground text-base">
-          Your account details from GET /auth/me.
-        </p>
-      </div>
-
       <Card className="max-w-md">
         <CardHeader>
           <CardTitle>Account</CardTitle>
@@ -47,6 +40,15 @@ export default function ProfilePage() {
             Edit name and change password are not yet available (API does not
             expose PATCH profile or change-password endpoints).
           </p>
+          <Button
+            variant="destructive"
+            className="mt-4 gap-2"
+            onClick={logout}
+            aria-label="Log out"
+          >
+            <LogOut className="h-4 w-4" aria-hidden />
+            Log out
+          </Button>
         </CardContent>
       </Card>
     </div>

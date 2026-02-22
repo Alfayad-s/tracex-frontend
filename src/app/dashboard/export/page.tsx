@@ -49,15 +49,6 @@ export default function ExportPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Export
-        </h1>
-        <p className="text-muted-foreground text-base">
-          Download your expenses as a CSV file.
-        </p>
-      </div>
-
       <Card className="max-w-md">
         <CardHeader>
           <CardTitle>Export expenses (CSV)</CardTitle>

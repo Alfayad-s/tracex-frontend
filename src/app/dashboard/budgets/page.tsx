@@ -42,7 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatRupee } from "@/lib/utils";
 
 const MONTHS = [
   { value: 0, label: "Yearly" },
@@ -70,15 +70,7 @@ function BudgetCompareCard({ budgetId }: { budgetId: string }) {
     <div className="space-y-2">
       <div className="flex justify-between text-sm">
         <span className="text-muted-foreground">
-          {new Intl.NumberFormat(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          }).format(spending)}{" "}
-          /{" "}
-          {new Intl.NumberFormat(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          }).format(limit)}
+          {formatRupee(spending)} / {formatRupee(limit)}
         </span>
         <span
           className={cn(
@@ -100,9 +92,7 @@ function BudgetCompareCard({ budgetId }: { budgetId: string }) {
         />
       </div>
       <p className="text-muted-foreground text-xs">
-        {remaining >= 0
-          ? `${new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(remaining)} remaining`
-          : "Over budget"}{" "}
+        {remaining >= 0 ? `${formatRupee(remaining)} remaining` : "Over budget"}{" "}
         · {expenseCount} expense(s)
       </p>
     </div>
@@ -130,11 +120,7 @@ function BudgetRow({
         <div>
           <CardTitle className="text-base">{categoryLabel}</CardTitle>
           <CardDescription>
-            {periodLabel} · Limit:{" "}
-            {new Intl.NumberFormat(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            }).format(budget.limit)}
+            {periodLabel} · Limit: {formatRupee(budget.limit)}
           </CardDescription>
         </div>
         <div className="flex gap-1">
@@ -269,9 +255,6 @@ export default function BudgetsPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Budgets
-        </h1>
         <p className="text-destructive text-base">Failed to load budgets.</p>
       </div>
     );
@@ -280,14 +263,6 @@ export default function BudgetsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-            Budgets
-          </h1>
-          <p className="text-muted-foreground text-base">
-            Set limits and track spending by category and period.
-          </p>
-        </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" aria-hidden />
           Add budget

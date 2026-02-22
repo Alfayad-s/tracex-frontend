@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Play } from "lucide-react";
+import { formatRupee } from "@/lib/utils";
 
 const FREQUENCIES = [
   { value: "day", label: "Daily" },
@@ -67,11 +68,7 @@ function RecurringRow({
         <div>
           <p className="font-medium">{item.category}</p>
           <p className="text-muted-foreground text-sm">
-            {new Intl.NumberFormat(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            }).format(item.amount)}{" "}
-            · {item.frequency}
+            {formatRupee(item.amount)} · {item.frequency}
           </p>
         </div>
         {item.description && (
@@ -231,9 +228,6 @@ export default function RecurringPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Recurring
-        </h1>
         <p className="text-destructive text-base">
           Failed to load recurring expenses.
         </p>
@@ -244,14 +238,6 @@ export default function RecurringPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-            Recurring expenses
-          </h1>
-          <p className="text-muted-foreground text-base">
-            Automatically create expenses on a schedule.
-          </p>
-        </div>
         <div className="flex gap-2">
           <Button
             variant="outline"

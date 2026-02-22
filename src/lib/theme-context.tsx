@@ -37,11 +37,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(getInitialTheme);
   const [resolvedDark, setResolvedDark] = useState(getInitialResolvedDark);
 
+  // Sync state from localStorage on mount so toggle matches the applied theme (set by inline script)
+  useEffect(() => {
+    const stored = getStoredTheme();
+    queueMicrotask(() => {
+      setThemeState(stored);
+      setResolvedDark(resolveDark(stored));
+    });
+  }, []);
+
   useEffect(() => {
     const isDark = resolveDark(theme);
     document.documentElement.classList.toggle("dark", isDark);
-    const t = setTimeout(() => setResolvedDark(isDark), 0);
-    return () => clearTimeout(t);
+    queueMicrotask(() => setResolvedDark(isDark));
   }, [theme]);
 
   useEffect(() => {

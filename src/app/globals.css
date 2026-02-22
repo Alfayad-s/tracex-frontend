@@ -1,15 +1,20 @@
 @import "tailwindcss";
 
+/* Light theme — clean, high contrast */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #0f0f0f;
   --muted: #f4f4f5;
   --muted-foreground: #71717a;
   --border: #e4e4e7;
   --input: #e4e4e7;
-  --ring: #171717;
+  --ring: #18181b;
   --card: #ffffff;
-  --card-foreground: #171717;
+  --card-foreground: #0f0f0f;
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
 }
 
 @theme inline {
@@ -22,21 +27,36 @@
   --color-ring: var(--ring);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-/* Dark theme: applied via class by ThemeProvider (and inline script to prevent flash) */
+/* Dark theme — easy on the eyes, WCAG-friendly contrast */
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #09090b;
+  --foreground: #fafafa;
   --muted: #27272a;
   --muted-foreground: #a1a1aa;
   --border: #27272a;
-  --input: #27272a;
-  --ring: #ededed;
-  --card: #0a0a0a;
-  --card-foreground: #ededed;
+  --input: #3f3f46;
+  --ring: #d4d4d8;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+}
+
+/* Smooth theme transition (short duration to avoid flash on load) */
+html {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 body {
@@ -44,12 +64,33 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   font-size: 16px; /* text-base minimum on mobile to reduce zoom */
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 /* Base focus ring for accessibility */
 *:focus-visible {
   outline: 2px solid var(--foreground);
   outline-offset: 2px;
+}
+
+/* Bottom sheet — slide from bottom (smooth enter/exit) */
+@keyframes sheet-in-from-bottom {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes sheet-out-to-bottom {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
 }
 
 /* Respect prefers-reduced-motion for animations */

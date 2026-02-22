@@ -1,14 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { format, startOfMonth, endOfMonth, subMonths, subDays } from "date-fns";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   PieChart,
@@ -29,7 +24,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -37,12 +31,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatRupee } from "@/lib/utils";
 import {
   Receipt,
   FolderTree,
   PiggyBank,
   RefreshCw,
-  TrendingUp,
   PieChart as PieChartIcon,
 } from "lucide-react";
 
@@ -100,6 +94,50 @@ const CHART_COLORS = [
   "#f97316",
 ];
 
+const DURATION_MS = 1200;
+function easeOutCubic(t: number) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function AnimatedAmount({
+  value,
+  formatRupee,
+  className,
+}: {
+  value: number;
+  formatRupee: (n: number) => string;
+  className?: string;
+}) {
+  const [display, setDisplay] = useState(0);
+  const displayRef = useRef(0);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    displayRef.current = display;
+  }, [display]);
+
+  useEffect(() => {
+    const start = displayRef.current;
+    const startTime = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / DURATION_MS, 1);
+      const eased = easeOutCubic(t);
+      const next = Math.round((start + (value - start) * eased) * 100) / 100;
+      setDisplay(next);
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [value]);
+
+  return <span className={className}>{formatRupee(display)}</span>;
+}
+
 export default function DashboardPage() {
   const thisMonth = useMemo(
     () => ({
@@ -124,11 +162,6 @@ export default function DashboardPage() {
     appliedRange.to,
     null
   );
-  const { data: summaryByPeriod, isLoading: periodLoading } = useExpenseSummary(
-    appliedRange.from,
-    appliedRange.to,
-    "month"
-  );
   const { data: summaryByCategory, isLoading: categoryLoading } =
     useExpenseSummaryByCategory(appliedRange.from, appliedRange.to);
 
@@ -148,15 +181,6 @@ export default function DashboardPage() {
     setTo(r.to);
   };
 
-  const chartData = useMemo(() => {
-    if (!summaryByPeriod?.byPeriod?.length) return [];
-    return summaryByPeriod.byPeriod.map((p) => ({
-      period: format(new Date(p.period), "MMM yyyy"),
-      total: p.total,
-      count: p.count,
-    }));
-  }, [summaryByPeriod]);
-
   const categoryChartData = useMemo(() => {
     if (!summaryByCategory?.byCategory?.length) return [];
     return summaryByCategory.byCategory.map((c) => ({
@@ -166,72 +190,39 @@ export default function DashboardPage() {
     }));
   }, [summaryByCategory]);
 
-  const isLoading = summaryLoading || periodLoading || categoryLoading;
+  const isLoading = summaryLoading || categoryLoading;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-            Dashboard
-          </h1>
-          <p className="text-muted-foreground text-base">
-            Spending overview and trends.
+    <div className="space-y-8 md:space-y-10">
+      {/* Hero: total spent — large type, incrementing animation, generous spacing */}
+      <div className="space-y-3 pb-2 md:space-y-4 md:pb-4">
+        <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+          Total spent
+        </p>
+        {isLoading ? (
+          <div className="bg-muted/60 h-16 w-48 max-w-full animate-pulse rounded md:h-20 md:w-56" />
+        ) : (
+          <p className="text-6xl leading-none font-bold tracking-tight tabular-nums sm:text-7xl md:text-7xl">
+            <AnimatedAmount
+              value={summary?.total ?? 0}
+              formatRupee={formatRupee}
+            />
           </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="date-preset">Period</Label>
-            <Select value={preset} onValueChange={handlePresetChange}>
-              <SelectTrigger id="date-preset" className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PRESETS.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="space-y-2">
-              <Label htmlFor="date-from" className="sr-only">
-                From
-              </Label>
-              <Input
-                id="date-from"
-                type="date"
-                value={from}
-                onChange={(e) => {
-                  setFrom(e.target.value);
-                  setPreset("");
-                }}
-              />
-            </div>
-            <span className="text-muted-foreground">–</span>
-            <div className="space-y-2">
-              <Label htmlFor="date-to" className="sr-only">
-                To
-              </Label>
-              <Input
-                id="date-to"
-                type="date"
-                value={to}
-                onChange={(e) => {
-                  setTo(e.target.value);
-                  setPreset("");
-                }}
-              />
-            </div>
-          </div>
+        )}
+        <div className="text-muted-foreground flex items-center gap-2 text-sm md:mt-1">
+          <span>{summary?.count ?? 0} expenses</span>
+          {showComparison && lastMonthSummary != null && (
+            <>
+              <span>·</span>
+              <span>vs {formatRupee(lastMonthSummary.total)} last month</span>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Total & count */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+      {/* Total & count — cards on desktop; hidden on mobile (already in hero) */}
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-border/50 hidden shadow-none md:block md:border md:shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-muted-foreground text-sm font-medium">
               Total spent
@@ -240,18 +231,18 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="bg-muted h-8 w-24 animate-pulse rounded" />
+              <div className="bg-muted h-16 w-40 animate-pulse rounded" />
             ) : (
-              <p className="text-2xl font-bold">
-                {new Intl.NumberFormat(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }).format(summary?.total ?? 0)}
+              <p className="text-5xl font-bold tabular-nums md:text-6xl">
+                <AnimatedAmount
+                  value={summary?.total ?? 0}
+                  formatRupee={formatRupee}
+                />
               </p>
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 hidden shadow-none md:block md:border md:shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-muted-foreground text-sm font-medium">
               Expense count
@@ -266,7 +257,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
         {showComparison && (
-          <Card className="sm:col-span-2">
+          <Card className="border-border/50 hidden shadow-none sm:col-span-2 md:block md:border md:shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-muted-foreground text-sm font-medium">
                 Period comparison
@@ -278,19 +269,13 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-muted-foreground text-xs">This month</p>
                   <p className="text-xl font-semibold">
-                    {new Intl.NumberFormat(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }).format(summary?.total ?? 0)}
+                    {formatRupee(summary?.total ?? 0)}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-xs">Last month</p>
                   <p className="text-xl font-semibold">
-                    {new Intl.NumberFormat(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }).format(lastMonthSummary?.total ?? 0)}
+                    {formatRupee(lastMonthSummary?.total ?? 0)}
                   </p>
                 </div>
               </div>
@@ -299,71 +284,45 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Charts: full width on mobile, 2 cols from lg; optional max-width on desktop */}
-      <div className="grid gap-6 lg:max-w-6xl lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-5 w-5" aria-hidden />
-              Spending over time
-            </CardTitle>
-            <CardDescription>By month in selected range.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {periodLoading ? (
-              <div className="text-muted-foreground flex h-[280px] items-center justify-center">
-                Loading…
-              </div>
-            ) : !chartData.length ? (
-              <div className="text-muted-foreground flex h-[280px] items-center justify-center">
-                No data for this period.
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart
-                  data={chartData}
-                  margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    className="stroke-muted"
-                  />
-                  <XAxis dataKey="period" tick={{ fontSize: 12 }} />
-                  <YAxis
-                    tick={{ fontSize: 12 }}
-                    tickFormatter={(v) => String(v)}
-                  />
-                  <Tooltip
-                    formatter={(value: number | undefined) => [
-                      value != null
-                        ? new Intl.NumberFormat(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          }).format(value)
-                        : "",
-                      "Total",
-                    ]}
-                    labelFormatter={(label) => `Period: ${label}`}
-                  />
-                  <Bar
-                    dataKey="total"
-                    fill={CHART_COLORS[0]}
-                    radius={[4, 4, 0, 0]}
-                    name="Total"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <PieChartIcon className="h-5 w-5" aria-hidden />
+      {/* Pie chart: filter above graph */}
+      <div className="mx-auto max-w-2xl space-y-5 pt-2 md:pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium md:text-base">
+              <PieChartIcon
+                className="text-muted-foreground h-4 w-4 md:h-5 md:w-5"
+                aria-hidden
+              />
               Spending by category
             </CardTitle>
-            <CardDescription>Breakdown for selected range.</CardDescription>
+            <CardDescription className="text-xs md:text-sm">
+              Breakdown for selected range.
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="date-preset"
+              className="text-muted-foreground text-xs font-medium"
+            >
+              Period
+            </Label>
+            <Select value={preset} onValueChange={handlePresetChange}>
+              <SelectTrigger id="date-preset" className="h-9 w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRESETS.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <Card className="md:bg-card border-0 bg-transparent shadow-none md:border md:shadow-sm">
+          <CardHeader className="sr-only">
+            <CardTitle>Spending by category</CardTitle>
           </CardHeader>
           <CardContent>
             {categoryLoading ? (
@@ -397,12 +356,7 @@ export default function DashboardPage() {
                   </Pie>
                   <Tooltip
                     formatter={(value: number | undefined) => [
-                      value != null
-                        ? new Intl.NumberFormat(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          }).format(value)
-                        : "",
+                      value != null ? formatRupee(value) : "",
                       "Total",
                     ]}
                   />
@@ -414,63 +368,72 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Quick links */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Quick links</CardTitle>
-          <CardDescription>
+      {/* Quick links: compact row on mobile, grid on desktop */}
+      <section className="border-border/40 border-t pt-8 md:border-0 md:pt-10">
+        <div className="md:border-border/50 md:bg-card md:rounded-lg md:border md:p-5 md:shadow-sm">
+          <p className="text-muted-foreground mb-3 hidden text-sm md:block">
             Manage expenses, categories, budgets, and more.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+          </p>
+          <div className="flex flex-wrap gap-2 md:grid md:grid-cols-2 md:gap-3 lg:grid-cols-4">
             <Button
               asChild
-              variant="secondary"
+              variant="ghost"
               size="sm"
-              className="h-auto min-h-[44px] flex-col gap-1 py-3 sm:min-h-0"
+              className="h-10 justify-start gap-2 rounded-lg px-3 md:h-auto md:min-h-[44px] md:flex-col md:py-3"
             >
               <Link href="/dashboard/expenses">
-                <Receipt className="h-5 w-5" aria-hidden />
+                <Receipt
+                  className="text-muted-foreground h-4 w-4 md:h-5 md:w-5"
+                  aria-hidden
+                />
                 Expenses
               </Link>
             </Button>
             <Button
               asChild
-              variant="secondary"
+              variant="ghost"
               size="sm"
-              className="h-auto min-h-[44px] flex-col gap-1 py-3 sm:min-h-0"
+              className="h-10 justify-start gap-2 rounded-lg px-3 md:h-auto md:min-h-[44px] md:flex-col md:py-3"
             >
               <Link href="/dashboard/categories">
-                <FolderTree className="h-5 w-5" aria-hidden />
+                <FolderTree
+                  className="text-muted-foreground h-4 w-4 md:h-5 md:w-5"
+                  aria-hidden
+                />
                 Categories
               </Link>
             </Button>
             <Button
               asChild
-              variant="secondary"
+              variant="ghost"
               size="sm"
-              className="h-auto min-h-[44px] flex-col gap-1 py-3 sm:min-h-0"
+              className="h-10 justify-start gap-2 rounded-lg px-3 md:h-auto md:min-h-[44px] md:flex-col md:py-3"
             >
               <Link href="/dashboard/budgets">
-                <PiggyBank className="h-5 w-5" aria-hidden />
+                <PiggyBank
+                  className="text-muted-foreground h-4 w-4 md:h-5 md:w-5"
+                  aria-hidden
+                />
                 Budgets
               </Link>
             </Button>
             <Button
               asChild
-              variant="secondary"
+              variant="ghost"
               size="sm"
-              className="h-auto min-h-[44px] flex-col gap-1 py-3 sm:min-h-0"
+              className="h-10 justify-start gap-2 rounded-lg px-3 md:h-auto md:min-h-[44px] md:flex-col md:py-3"
             >
               <Link href="/dashboard/recurring">
-                <RefreshCw className="h-5 w-5" aria-hidden />
+                <RefreshCw
+                  className="text-muted-foreground h-4 w-4 md:h-5 md:w-5"
+                  aria-hidden
+                />
                 Recurring
               </Link>
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   );
 }

@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 
 export function OfflineBanner() {
-  const [isOnline, setIsOnline] = useState(() =>
-    typeof navigator !== "undefined" ? navigator.onLine : true
-  );
+  // Always start true so server and client first paint match (no navigator on server).
+  // Real value is set in useEffect to avoid hydration mismatch when user is offline.
+  const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
+    const sync = () => setIsOnline(navigator.onLine);
+    queueMicrotask(sync);
     function setOnline() {
       setIsOnline(true);
     }

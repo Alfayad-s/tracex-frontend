@@ -56,6 +56,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { TRACEX_NEW_EXPENSE_EVENT } from "@/lib/shortcuts";
+import { formatRupee } from "@/lib/utils";
 
 const SORT_OPTIONS = [
   { value: "date", label: "Date" },
@@ -91,6 +92,232 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
         )
       )}
     </>
+  );
+}
+
+const SWIPE_THRESHOLD = 56;
+const SWIPE_MAX = 80;
+
+const SWIPE_HINT_SEEN_KEY = "tracex_swipe_hint_seen";
+
+function SwipeHintDemo({ onDismiss }: { onDismiss: () => void }) {
+  const [translateX, setTranslateX] = useState(0);
+
+  useEffect(() => {
+    const slideDuration = 400;
+    const hold = 1200;
+    const t1 = setTimeout(() => setTranslateX(-72), 800);
+    const t2 = setTimeout(() => setTranslateX(0), 800 + slideDuration + hold);
+    const t3 = setTimeout(
+      () => setTranslateX(72),
+      800 + (slideDuration + hold) * 2
+    );
+    const t4 = setTimeout(
+      () => setTranslateX(0),
+      800 + (slideDuration + hold) * 3
+    );
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+    };
+  }, []);
+
+  return (
+    <div className="border-border/50 bg-card overflow-hidden rounded-2xl border shadow-sm">
+      <div className="border-border/40 bg-muted/20 px-4 py-3">
+        <p className="text-muted-foreground text-center text-xs leading-relaxed">
+          <span className="text-foreground font-medium">Tip:</span> Swipe left
+          to edit, swipe right to delete
+        </p>
+      </div>
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-y-0 left-0 flex w-[72px] items-center justify-center bg-red-500">
+          <span className="flex flex-col items-center gap-1 text-[10px] font-medium tracking-wider text-white uppercase">
+            <Trash2 className="h-4 w-4" aria-hidden />
+            Delete
+          </span>
+        </div>
+        <div className="absolute inset-y-0 right-0 flex w-[72px] items-center justify-center bg-blue-500">
+          <span className="flex flex-col items-center gap-1 text-[10px] font-medium tracking-wider text-white uppercase">
+            <Pencil className="h-4 w-4" aria-hidden />
+            Edit
+          </span>
+        </div>
+        <div
+          className="bg-card relative z-10 transition-[transform] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
+          style={{ transform: `translateX(${translateX}px)` }}
+        >
+          <div className="flex min-w-full items-center gap-3 px-4 py-3">
+            <div className="bg-muted/80 h-4 w-4 shrink-0 rounded" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-muted-foreground text-xs">Sample expense</p>
+                <p className="text-sm font-semibold tabular-nums">₹0.00</p>
+              </div>
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                Drag this row to try
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="border-border/40 bg-muted/10 flex justify-center border-t px-4 py-2.5">
+        <Button variant="secondary" size="sm" onClick={onDismiss}>
+          Got it
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SwipeableExpenseRow({
+  exp,
+  onEdit,
+  onDelete,
+  selectedIds,
+  toggleSelected,
+  search,
+  formatRupee,
+  format,
+  HighlightMatchComponent,
+}: {
+  exp: Expense;
+  onEdit: () => void;
+  onDelete: () => void;
+  selectedIds: Set<string>;
+  toggleSelected: (id: string) => void;
+  search: string | undefined;
+  formatRupee: (n: number) => string;
+  format: (d: Date, f: string) => string;
+  HighlightMatchComponent: React.ComponentType<{ text: string; query: string }>;
+}) {
+  const [translateX, setTranslateX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const startX = useRef(0);
+  const startTranslate = useRef(0);
+  const currentX = useRef(0);
+
+  const clamp = (v: number) => {
+    if (v > 0) return Math.min(v, SWIPE_MAX);
+    return Math.max(v, -SWIPE_MAX);
+  };
+
+  const handleStart = (clientX: number) => {
+    startX.current = clientX;
+    startTranslate.current = translateX;
+    currentX.current = translateX;
+    setIsDragging(true);
+  };
+
+  const handleMove = (clientX: number) => {
+    if (!isDragging) return;
+    const delta = clientX - startX.current;
+    const next = clamp(startTranslate.current + delta);
+    currentX.current = next;
+    setTranslateX(next);
+  };
+
+  const handleEnd = () => {
+    if (!isDragging) return;
+    const x = currentX.current;
+    setIsDragging(false);
+    setTranslateX(0);
+    if (x <= -SWIPE_THRESHOLD) {
+      onEdit();
+    } else if (x >= SWIPE_THRESHOLD) {
+      onDelete();
+    }
+  };
+
+  return (
+    <div className="border-border/40 relative w-full overflow-hidden border-b last:border-b-0">
+      {/* Left: Delete */}
+      <div className="absolute inset-y-0 left-0 z-0 flex w-[72px] items-center justify-center bg-red-500">
+        <span className="flex flex-col items-center gap-1 text-[10px] font-medium tracking-wider text-white uppercase">
+          <Trash2 className="h-4 w-4" aria-hidden />
+          Delete
+        </span>
+      </div>
+      {/* Right: Edit */}
+      <div className="absolute inset-y-0 right-0 z-0 flex w-[72px] items-center justify-center bg-blue-500">
+        <span className="flex flex-col items-center gap-1 text-[10px] font-medium tracking-wider text-white uppercase">
+          <Pencil className="h-4 w-4" aria-hidden />
+          Edit
+        </span>
+      </div>
+      {/* Sliding content — full width so red/blue panels stay hidden */}
+      <div
+        className="relative z-10 flex w-full min-w-full shrink-0 items-center transition-[transform] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
+        style={{
+          transform: `translateX(${translateX}px)`,
+          transitionProperty: isDragging ? "none" : "transform",
+          touchAction: "pan-y",
+        }}
+        onTouchStart={(e) => handleStart(e.targetTouches[0].clientX)}
+        onTouchMove={(e) => handleMove(e.targetTouches[0].clientX)}
+        onTouchEnd={handleEnd}
+        onTouchCancel={handleEnd}
+        onPointerDown={(e) => {
+          if (e.pointerType === "mouse") {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            handleStart(e.clientX);
+          }
+        }}
+        onPointerMove={(e) => {
+          if (
+            e.pointerType === "mouse" &&
+            e.currentTarget.hasPointerCapture(e.pointerId)
+          ) {
+            handleMove(e.clientX);
+          }
+        }}
+        onPointerUp={(e) => {
+          if (e.pointerType === "mouse") {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+            handleEnd();
+          }
+        }}
+        onPointerLeave={(e) => {
+          if (
+            e.pointerType === "mouse" &&
+            e.currentTarget.hasPointerCapture(e.pointerId)
+          ) {
+            handleEnd();
+          }
+        }}
+      >
+        <div className="bg-card active:bg-muted/20 flex min-w-full flex-1 items-start gap-3 px-4 py-3.5 transition-colors">
+          <input
+            type="checkbox"
+            checked={selectedIds.has(exp.id)}
+            onChange={() => toggleSelected(exp.id)}
+            aria-label={`Select expense ${exp.id}`}
+            className="border-input mt-0.5 h-4 w-4 shrink-0 rounded"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-muted-foreground text-xs tabular-nums">
+                {format(new Date(exp.date), "dd MMM yyyy")} · {exp.category}
+              </p>
+              <p className="font-semibold tabular-nums">
+                {formatRupee(exp.amount)}
+              </p>
+            </div>
+            {exp.description ? (
+              <p className="text-muted-foreground mt-0.5 line-clamp-2 text-sm">
+                <HighlightMatchComponent
+                  text={exp.description}
+                  query={search ?? ""}
+                />
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -229,6 +456,12 @@ export default function ExpensesPage() {
   const [editing, setEditing] = useState<Expense | null>(null);
   const [deleting, setDeleting] = useState<Expense | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [showSwipeHint, setShowSwipeHint] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setShowSwipeHint(localStorage.getItem(SWIPE_HINT_SEEN_KEY) !== "1");
+  }, []);
 
   const { data: listResponse, isLoading, error } = useExpenses(filters);
   const expenses = listResponse?.data ?? [];
@@ -396,9 +629,6 @@ export default function ExpensesPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Expenses
-        </h1>
         <p className="text-destructive text-base">Failed to load expenses.</p>
       </div>
     );
@@ -406,35 +636,39 @@ export default function ExpensesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-            Expenses
-          </h1>
-          <p className="text-muted-foreground text-base">
-            View and manage your expenses.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3 max-md:flex-col max-md:flex-nowrap">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            className="max-md:order-last md:hidden"
+            size="icon"
+            className="h-10 w-10 rounded-full md:hidden"
             onClick={() => setFiltersOpen(true)}
+            aria-label={
+              hasFilters
+                ? `Filters (${[filters.from, filters.to, filters.category, filters.search, filters.minAmount != null, filters.maxAmount != null].filter(Boolean).length} applied)`
+                : "Open filters"
+            }
           >
-            <SlidersHorizontal className="mr-2 h-4 w-4" aria-hidden />
-            {hasFilters
-              ? `Filters (${[filters.from, filters.to, filters.category, filters.search, filters.minAmount != null, filters.maxAmount != null].filter(Boolean).length})`
-              : "Filters"}
+            <SlidersHorizontal className="h-5 w-5" aria-hidden />
           </Button>
-          <Button variant="outline" onClick={() => setBulkOpen(true)}>
-            <Upload className="mr-2 h-4 w-4" aria-hidden />
-            Import
-          </Button>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" aria-hidden />
-            Add expense
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-10 w-10 rounded-full"
+            onClick={() => setBulkOpen(true)}
+            aria-label="Import expenses"
+          >
+            <Upload className="h-5 w-5" aria-hidden />
           </Button>
         </div>
+        <Button
+          size="icon"
+          className="h-12 w-12 rounded-full"
+          onClick={() => setCreateOpen(true)}
+          aria-label="Add expense"
+        >
+          <Plus className="h-6 w-6" aria-hidden />
+        </Button>
       </div>
 
       {/* Filters: inline/sidebar on desktop (md+); sheet on mobile (max-md) */}
@@ -763,296 +997,261 @@ export default function ExpensesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-3 md:p-0">
-              <div className="space-y-2 md:hidden">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="border-border rounded-lg border p-3">
+      {/* Expense list — clean list style, no card container */}
+      <div className="border-border/50 bg-card overflow-hidden rounded-2xl border shadow-sm">
+        {isLoading ? (
+          <div className="px-4 py-3 md:px-6">
+            <div className="space-y-0 md:hidden">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="border-border/40 flex items-center gap-4 border-b py-4 last:border-0"
+                >
+                  <div className="bg-muted/50 h-4 w-4 shrink-0 animate-pulse rounded" />
+                  <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex justify-between gap-2">
-                      <div className="bg-muted h-4 w-20 animate-pulse rounded" />
-                      <div className="bg-muted h-4 w-14 animate-pulse rounded" />
+                      <div className="bg-muted/60 h-4 w-16 animate-pulse rounded" />
+                      <div className="bg-muted/60 h-4 w-14 animate-pulse rounded" />
                     </div>
-                    <div className="bg-muted mt-2 h-3 w-24 animate-pulse rounded" />
-                    <div className="bg-muted mt-1 h-3 w-full animate-pulse rounded" />
+                    <div className="bg-muted/60 h-3 w-24 animate-pulse rounded" />
                   </div>
-                ))}
-              </div>
-              <div className="hidden min-h-[200px] items-center justify-center py-12 md:flex">
-                <div className="bg-muted h-8 w-48 animate-pulse rounded" />
-              </div>
+                </div>
+              ))}
             </div>
-          ) : expenses.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-4 py-12">
-              <p className="text-muted-foreground">No expenses.</p>
-              <div className="flex gap-2">
-                <Button onClick={() => setCreateOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" aria-hidden />
-                  Add expense
+            <div className="hidden min-h-[240px] items-center justify-center md:flex">
+              <div className="bg-muted/60 h-6 w-40 animate-pulse rounded-full" />
+            </div>
+          </div>
+        ) : expenses.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-5 py-16">
+            <p className="text-muted-foreground text-sm">No expenses yet.</p>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" aria-hidden />
+                Add expense
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBulkOpen(true)}
+              >
+                <Upload className="mr-2 h-4 w-4" aria-hidden />
+                Import
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {selectedIds.size > 0 && (
+              <div className="border-border/40 bg-muted/20 flex flex-wrap items-center gap-3 border-b px-4 py-2.5 md:px-6">
+                <span className="text-muted-foreground text-sm">
+                  {selectedIds.size} selected
+                </span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setBulkDeleteOpen(true)}
+                >
+                  Delete selected
                 </Button>
-                <Button variant="outline" onClick={() => setBulkOpen(true)}>
-                  <Upload className="mr-2 h-4 w-4" aria-hidden />
-                  Import
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Clear
                 </Button>
               </div>
-            </div>
-          ) : (
-            <>
-              {selectedIds.size > 0 && (
-                <div className="border-border flex flex-wrap items-center gap-3 border-b p-3">
-                  <span className="text-muted-foreground text-sm">
-                    {selectedIds.size} selected
-                  </span>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setBulkDeleteOpen(true)}
-                  >
-                    Delete selected
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedIds(new Set())}
-                  >
-                    Clear selection
-                  </Button>
+            )}
+            {/* Mobile: swipeable list — swipe left = edit, swipe right = delete (with confirmation) */}
+            <div className="md:hidden">
+              {showSwipeHint === true && (
+                <div className="mb-4">
+                  <SwipeHintDemo
+                    onDismiss={() => {
+                      localStorage.setItem(SWIPE_HINT_SEEN_KEY, "1");
+                      setShowSwipeHint(false);
+                    }}
+                  />
                 </div>
               )}
-              {/* Mobile: card list */}
-              <div className="space-y-2 p-3 md:hidden">
-                {expenses.map((exp) => (
-                  <div
-                    key={exp.id}
-                    className="border-border bg-card rounded-lg border p-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-medium">
-                          {new Intl.NumberFormat(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          }).format(exp.amount)}
-                        </p>
-                        <p className="text-muted-foreground text-sm">
-                          {format(new Date(exp.date), "dd MMM yyyy")} ·{" "}
-                          {exp.category}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 gap-1">
+              {expenses.map((exp) => (
+                <SwipeableExpenseRow
+                  key={exp.id}
+                  exp={exp}
+                  onEdit={() => setEditing(exp)}
+                  onDelete={() => setDeleting(exp)}
+                  selectedIds={selectedIds}
+                  toggleSelected={toggleSelected}
+                  search={filters.search ?? undefined}
+                  formatRupee={formatRupee}
+                  format={format}
+                  HighlightMatchComponent={HighlightMatch}
+                />
+              ))}
+            </div>
+            {/* Desktop: table as list */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-border/50 bg-muted/20 text-muted-foreground border-b text-left text-xs font-medium tracking-wider uppercase">
+                    <th className="w-10 px-6 py-3">
+                      <input
+                        ref={selectAllRef}
+                        type="checkbox"
+                        checked={
+                          expenses.length > 0 &&
+                          selectedIds.size === expenses.length
+                        }
+                        onChange={toggleSelectAll}
+                        aria-label="Select all on page"
+                        className="border-input h-4 w-4 rounded"
+                      />
+                    </th>
+                    <th className="px-6 py-3">Date</th>
+                    <th className="px-6 py-3 text-right">Amount</th>
+                    <th className="px-6 py-3">Category</th>
+                    <th className="max-w-[220px] px-6 py-3">Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map((exp) => (
+                    <tr
+                      key={exp.id}
+                      className="border-border/40 hover:bg-muted/15 cursor-pointer transition-colors"
+                      onClick={() => setEditing(exp)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setDeleting(exp);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setEditing(exp);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Edit expense ${format(new Date(exp.date), "dd MMM yyyy")} ${formatRupee(exp.amount)}. Right-click to delete.`}
+                    >
+                      <td className="px-6 py-3">
                         <input
                           type="checkbox"
                           checked={selectedIds.has(exp.id)}
                           onChange={() => toggleSelected(exp.id)}
                           aria-label={`Select expense ${exp.id}`}
                           className="border-input h-4 w-4 rounded"
+                          onClick={(e) => e.stopPropagation()}
                         />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setEditing(exp)}
-                          aria-label="Edit"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeleting(exp)}
-                          aria-label="Delete"
-                        >
-                          <Trash2 className="text-destructive h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    {exp.description ? (
-                      <p className="text-muted-foreground mt-2 line-clamp-2 text-sm">
+                      </td>
+                      <td className="text-muted-foreground px-6 py-3 tabular-nums">
+                        {format(new Date(exp.date), "dd MMM yyyy")}
+                      </td>
+                      <td className="px-6 py-3 text-right font-semibold tabular-nums">
+                        {formatRupee(exp.amount)}
+                      </td>
+                      <td className="px-6 py-3">{exp.category}</td>
+                      <td className="text-muted-foreground max-w-[220px] truncate px-6 py-3">
                         <HighlightMatch
-                          text={exp.description}
+                          text={exp.description ?? "—"}
                           query={filters.search ?? ""}
                         />
-                      </p>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-              {/* Desktop: table */}
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-border border-b">
-                      <th className="w-10 p-3 lg:py-2">
-                        <input
-                          ref={selectAllRef}
-                          type="checkbox"
-                          checked={
-                            expenses.length > 0 &&
-                            selectedIds.size === expenses.length
-                          }
-                          onChange={toggleSelectAll}
-                          aria-label="Select all on page"
-                          className="border-input h-4 w-4 rounded"
-                        />
-                      </th>
-                      <th className="p-3 text-left font-medium lg:py-2">
-                        Date
-                      </th>
-                      <th className="p-3 text-right font-medium lg:py-2">
-                        Amount
-                      </th>
-                      <th className="p-3 text-left font-medium lg:py-2">
-                        Category
-                      </th>
-                      <th className="p-3 text-left font-medium lg:py-2">
-                        Description
-                      </th>
-                      <th
-                        className="w-[100px] p-3 lg:py-2"
-                        aria-label="Actions"
-                      />
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {expenses.map((exp) => (
-                      <tr
-                        key={exp.id}
-                        className="border-border hover:bg-muted/50 border-b transition-colors last:border-0"
-                      >
-                        <td className="p-3 lg:py-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(exp.id)}
-                            onChange={() => toggleSelected(exp.id)}
-                            aria-label={`Select expense ${exp.id}`}
-                            className="border-input h-4 w-4 rounded"
-                          />
-                        </td>
-                        <td className="p-3 lg:py-2">
-                          {format(new Date(exp.date), "dd MMM yyyy")}
-                        </td>
-                        <td className="p-3 text-right font-medium lg:py-2">
-                          {new Intl.NumberFormat(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          }).format(exp.amount)}
-                        </td>
-                        <td className="p-3 lg:py-2">{exp.category}</td>
-                        <td className="text-muted-foreground max-w-[200px] truncate p-3 lg:py-2">
-                          <HighlightMatch
-                            text={exp.description ?? "—"}
-                            query={filters.search ?? ""}
-                          />
-                        </td>
-                        <td className="p-3 lg:py-2">
-                          <div className="flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setEditing(exp)}
-                              aria-label="Edit"
-                              title="Edit"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setDeleting(exp)}
-                              aria-label="Delete"
-                              title="Delete"
-                            >
-                              <Trash2 className="text-destructive h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {/* Pagination - show on both mobile and desktop */}
-              {pagination && pagination.totalPages > 1 && (
-                <div className="border-border flex flex-wrap items-center justify-between gap-4 border-t p-3">
-                  <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                    <span>
-                      Page {pagination.page} of {pagination.totalPages} (
-                      {pagination.total} total)
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {pagination && pagination.totalPages > 1 && (
+              <div className="border-border/40 bg-muted/10 flex flex-wrap items-center justify-between gap-4 border-t px-4 py-3 md:px-6">
+                <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                  <span>
+                    Page {pagination.page} of {pagination.totalPages}
+                    <span className="hidden sm:inline">
+                      {" "}
+                      · {pagination.total} total
                     </span>
-                    <Select
-                      value={String(pagination.limit)}
-                      onValueChange={(v) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          limit: Number(v),
-                          page: 1,
-                        }))
-                      }
-                    >
-                      <SelectTrigger className="h-8 w-[70px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PAGE_SIZES.map((n) => (
-                          <SelectItem key={n} value={String(n)}>
-                            {n}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    per page
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!pagination.hasPrev}
-                      onClick={() =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          page: (prev.page ?? 1) - 1,
-                        }))
-                      }
-                    >
-                      <ChevronLeft className="h-4 w-4" aria-hidden />
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!pagination.hasNext}
-                      onClick={() =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          page: (prev.page ?? 1) + 1,
-                        }))
-                      }
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4" aria-hidden />
-                    </Button>
-                  </div>
+                  </span>
+                  <Select
+                    value={String(pagination.limit)}
+                    onValueChange={(v) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        limit: Number(v),
+                        page: 1,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="h-8 w-[72px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZES.map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-muted-foreground">per page</span>
                 </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!pagination.hasPrev}
+                    onClick={() =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        page: (prev.page ?? 1) - 1,
+                      }))
+                    }
+                  >
+                    <ChevronLeft className="h-4 w-4" aria-hidden />
+                    Prev
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!pagination.hasNext}
+                    onClick={() =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        page: (prev.page ?? 1) + 1,
+                      }))
+                    }
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" aria-hidden />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
-      {/* Create dialog */}
+      {/* Create — bottom sheet */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add expense</DialogTitle>
-            <DialogDescription>Record a new expense.</DialogDescription>
-          </DialogHeader>
-          <ExpenseForm
-            onSubmit={handleCreate}
-            onCancel={() => setCreateOpen(false)}
-            isSubmitting={createMutation.isPending}
-            submitLabel="Add"
-          />
+        <DialogContent className="border-border inset-x-0 top-auto bottom-0 flex max-h-[90vh] w-full max-w-full translate-y-0 flex-col gap-0 overflow-hidden rounded-t-2xl border-x border-t p-0 shadow-xl data-[state=closed]:animate-[sheet-out-to-bottom_0.3s_cubic-bezier(0.32,0.72,0,1)] data-[state=open]:animate-[sheet-in-from-bottom_0.35s_cubic-bezier(0.32,0.72,0,1)]">
+          <div className="bg-muted/30 flex shrink-0 justify-center pt-3 pb-1">
+            <div
+              className="bg-muted-foreground/30 h-1 w-10 rounded-full"
+              aria-hidden
+            />
+          </div>
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pt-1 pb-6">
+            <DialogHeader>
+              <DialogTitle>Add expense</DialogTitle>
+              <DialogDescription>Record a new expense.</DialogDescription>
+            </DialogHeader>
+            <ExpenseForm
+              onSubmit={handleCreate}
+              onCancel={() => setCreateOpen(false)}
+              isSubmitting={createMutation.isPending}
+              submitLabel="Add"
+            />
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -1091,18 +1290,14 @@ export default function ExpensesPage() {
         open={!!deleting}
         onOpenChange={(open) => !open && setDeleting(null)}
       >
-        <DialogContent>
+        <DialogContent className="border-border inset-auto top-1/2 left-1/2 max-h-[85vh] w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border p-6">
           <DialogHeader>
             <DialogTitle>Delete expense</DialogTitle>
             <DialogDescription>
               Delete expense on{" "}
               {deleting && format(new Date(deleting.date), "dd MMM yyyy")} for{" "}
-              {deleting &&
-                new Intl.NumberFormat(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }).format(deleting.amount)}{" "}
-              ({deleting?.category})? This cannot be undone.
+              {deleting && formatRupee(deleting.amount)} ({deleting?.category})?
+              This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1122,7 +1317,7 @@ export default function ExpensesPage() {
 
       {/* Bulk delete confirm */}
       <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
-        <DialogContent>
+        <DialogContent className="border-border inset-auto top-1/2 left-1/2 max-h-[85vh] w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border p-6">
           <DialogHeader>
             <DialogTitle>Delete selected expenses</DialogTitle>
             <DialogDescription>
