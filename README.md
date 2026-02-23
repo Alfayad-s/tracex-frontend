@@ -46,6 +46,18 @@ Professional expense tracking web app built with Next.js (App Router), TypeScrip
 
 Run `npm run build` to create a production build. Fix any type or lint errors before deploying.
 
+## Deploying to Vercel
+
+1. Push your repo and import the project in [Vercel](https://vercel.com).
+2. In **Project Settings → Environment Variables**, add:
+   - **Name:** `NEXT_PUBLIC_API_URL`  
+     **Value:** `https://tracex-backend-production.up.railway.app`  
+     (Apply to Production and Preview if you use the same backend.)
+   - **Name:** `NEXT_PUBLIC_APP_URL`  
+     **Value:** `https://your-app.vercel.app` (your Vercel project URL, no trailing slash)  
+     Used for meta tags, Open Graph, and social sharing image (`/meta.png`). If unset, defaults to `https://tracex.vercel.app`.
+3. Redeploy so the variables are picked up.
+
 ## Security
 
 - All API calls use the base URL from `NEXT_PUBLIC_API_URL`; the auth token is sent only in the `Authorization` header (never in URLs or logs).

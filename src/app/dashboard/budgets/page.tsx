@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import type { ApiErrorPayload } from "@/lib/api/client";
-import type { Budget } from "@/lib/api/types";
+import type { Budget, BudgetWithSpending } from "@/lib/api/types";
 import {
   useBudgets,
   useBudgetCompare,
@@ -52,12 +52,35 @@ const MONTHS = [
   })),
 ];
 
-function BudgetCompareCard({ budgetId }: { budgetId: string }) {
+function BudgetCompareFallback({ budgetId }: { budgetId: string }) {
   const { data: compare, isLoading } = useBudgetCompare(budgetId);
   if (isLoading || !compare) {
     return <div className="bg-muted h-16 animate-pulse rounded-md" />;
   }
-  const { spending, limit, remaining, percentUsed, expenseCount } = compare;
+  return (
+    <BudgetSpendingBar
+      spending={compare.spending}
+      limit={compare.limit}
+      remaining={compare.remaining}
+      percentUsed={compare.percentUsed}
+      expenseCount={compare.expenseCount}
+    />
+  );
+}
+
+function BudgetSpendingBar({
+  spending,
+  limit,
+  remaining,
+  percentUsed,
+  expenseCount,
+}: {
+  spending: number;
+  limit: number;
+  remaining: number;
+  percentUsed: number;
+  expenseCount: number;
+}) {
   const pct = Math.min(percentUsed, 100);
   const barColor =
     percentUsed > 100
@@ -65,7 +88,6 @@ function BudgetCompareCard({ budgetId }: { budgetId: string }) {
       : percentUsed >= 80
         ? "bg-amber-500"
         : "bg-green-500";
-
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-sm">
@@ -104,7 +126,7 @@ function BudgetRow({
   onEdit,
   onDelete,
 }: {
-  budget: Budget;
+  budget: BudgetWithSpending;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -113,6 +135,11 @@ function BudgetRow({
     : `Year ${budget.year}`;
   const categoryLabel =
     budget.category && budget.category.trim() ? budget.category : "Overall";
+  const hasSpending =
+    budget.spending != null &&
+    budget.remaining != null &&
+    budget.percentUsed != null &&
+    budget.expenseCount != null;
 
   return (
     <Card>
@@ -121,6 +148,11 @@ function BudgetRow({
           <CardTitle className="text-base">{categoryLabel}</CardTitle>
           <CardDescription>
             {periodLabel} · Limit: {formatRupee(budget.limit)}
+            {budget.shareSlug && (
+              <span className="text-muted-foreground ml-1 text-xs">
+                · Share: /budget/{budget.shareSlug}
+              </span>
+            )}
           </CardDescription>
         </div>
         <div className="flex gap-1">
@@ -143,20 +175,30 @@ function BudgetRow({
         </div>
       </CardHeader>
       <CardContent>
-        <BudgetCompareCard budgetId={budget.id} />
+        {hasSpending ? (
+          <BudgetSpendingBar
+            spending={budget.spending!}
+            limit={budget.limit}
+            remaining={budget.remaining!}
+            percentUsed={budget.percentUsed!}
+            expenseCount={budget.expenseCount!}
+          />
+        ) : (
+          <BudgetCompareFallback budgetId={budget.id} />
+        )}
       </CardContent>
     </Card>
   );
 }
 
 export default function BudgetsPage() {
-  const { data: budgets = [], isLoading, error } = useBudgets();
+  const { data: budgets = [], isLoading, error } = useBudgets(true);
   const createMutation = useCreateBudget();
   const updateMutation = useUpdateBudget();
   const deleteMutation = useDeleteBudget();
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [editing, setEditing] = useState<Budget | null>(null);
+  const [editing, setEditing] = useState<BudgetWithSpending | null>(null);
   const [deleting, setDeleting] = useState<Budget | null>(null);
 
   const {
@@ -173,8 +215,10 @@ export default function BudgetsPage() {
       year: new Date().getFullYear(),
       month: 0,
       limit: 0,
+      shareSlug: "",
     },
   });
+  // eslint-disable-next-line react-hooks/incompatible-library -- watch() from react-hook-form is safe here
   const category = watch("category");
 
   useEffect(() => {
@@ -184,6 +228,7 @@ export default function BudgetsPage() {
         year: editing.year,
         month: editing.month ?? 0,
         limit: editing.limit,
+        shareSlug: editing.shareSlug ?? "",
       });
     }
   }, [editing, reset]);
@@ -195,6 +240,7 @@ export default function BudgetsPage() {
         year: values.year,
         month: values.month === 0 ? undefined : values.month,
         limit: values.limit,
+        shareSlug: values.shareSlug?.trim() || undefined,
       },
       {
         onSuccess: () => {
@@ -222,6 +268,7 @@ export default function BudgetsPage() {
           year: values.year,
           month: values.month === 0 ? undefined : values.month,
           limit: values.limit,
+          shareSlug: values.shareSlug?.trim() || undefined,
         },
       },
       {
@@ -385,6 +432,23 @@ export default function BudgetsPage() {
                 <p className="text-sm text-red-600">{errors.limit.message}</p>
               )}
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="budget-share">Share slug (optional)</Label>
+              <Input
+                id="budget-share"
+                placeholder="my-budget"
+                maxLength={64}
+                {...register("shareSlug")}
+              />
+              {errors.shareSlug && (
+                <p className="text-sm text-red-600">
+                  {errors.shareSlug.message}
+                </p>
+              )}
+              <p className="text-muted-foreground text-xs">
+                Letters, numbers, _ and - only. Public view: /budget/[slug]
+              </p>
+            </div>
             <DialogFooter>
               <Button
                 type="button"
@@ -476,6 +540,20 @@ export default function BudgetsPage() {
                 />
                 {errors.limit && (
                   <p className="text-sm text-red-600">{errors.limit.message}</p>
+                )}
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-share">Share slug (optional)</Label>
+                <Input
+                  id="edit-share"
+                  placeholder="my-budget"
+                  maxLength={64}
+                  {...register("shareSlug")}
+                />
+                {errors.shareSlug && (
+                  <p className="text-sm text-red-600">
+                    {errors.shareSlug.message}
+                  </p>
                 )}
               </div>
               <DialogFooter>

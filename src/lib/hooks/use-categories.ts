@@ -52,3 +52,11 @@ export function useDeleteCategory() {
     onSuccess: () => qc.invalidateQueries({ queryKey: categoriesKey }),
   });
 }
+export function useRestoreCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<Category>(endpoints.categoryRestore(id)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: categoriesKey }),
+  });
+}

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth/auth-context";
 import { format, startOfMonth, endOfMonth, subMonths, subDays } from "date-fns";
 import {
   Tooltip,
@@ -139,6 +140,7 @@ function AnimatedAmount({
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const thisMonth = useMemo(
     () => ({
       from: format(startOfMonth(new Date()), "yyyy-MM-dd"),
@@ -192,8 +194,16 @@ export default function DashboardPage() {
 
   const isLoading = summaryLoading || categoryLoading;
 
+  const displayName = user?.name?.trim() || user?.email || "there";
+
   return (
     <div className="space-y-8 md:space-y-10">
+      {user && (
+        <p className="text-muted-foreground text-sm md:text-base">
+          Welcome back,{" "}
+          <span className="text-foreground font-medium">{displayName}</span>.
+        </p>
+      )}
       {/* Hero: total spent — large type, incrementing animation, generous spacing */}
       <div className="space-y-3 pb-2 md:space-y-4 md:pb-4">
         <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">

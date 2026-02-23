@@ -8,6 +8,8 @@ export const expenseFormSchema = z.object({
   ),
   category: z.string().min(1, "Category is required").max(100),
   description: z.string().max(5000).optional().or(z.literal("")),
+  receiptUrl: z.string().max(500).optional().or(z.literal("")),
+  currency: z.string().max(10).optional().or(z.literal("")),
 });
 
 export type ExpenseFormValues = z.infer<typeof expenseFormSchema>;
@@ -22,5 +24,8 @@ export const bulkExpenseItemSchema = z.object({
 export type BulkExpenseItem = z.infer<typeof bulkExpenseItemSchema>;
 
 export const bulkExpensesSchema = z.object({
-  expenses: z.array(bulkExpenseItemSchema).min(1, "Add at least one expense").max(100, "Maximum 100 expenses per import"),
+  expenses: z
+    .array(bulkExpenseItemSchema)
+    .min(1, "Add at least one expense")
+    .max(100, "Maximum 100 expenses per import"),
 });

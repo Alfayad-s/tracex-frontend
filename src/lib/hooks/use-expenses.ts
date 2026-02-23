@@ -3,7 +3,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { endpoints } from "@/lib/api/endpoints";
-import type { Expense } from "@/lib/api/types";
+import type {
+  Expense,
+  BulkUpdateExpensesResponse,
+  BulkDeleteExpensesResponse,
+} from "@/lib/api/types";
 
 export interface ExpensesParams {
   page?: number;
@@ -29,7 +33,10 @@ export function useExpenses(params: ExpensesParams = {}) {
   return useQuery({
     queryKey: expensesQueryKey(params),
     queryFn: () =>
-      api.getList<Expense>(endpoints.expenses, params as Record<string, string | number | undefined>),
+      api.getList<Expense>(
+        endpoints.expenses,
+        params as Record<string, string | number | undefined>
+      ),
   });
 }
 
@@ -47,8 +54,11 @@ export function useCreateExpense() {
     mutationFn: (body: {
       date: string;
       amount: number;
-      category: string;
+      category?: string;
+      categoryId?: string;
       description?: string;
+      receiptUrl?: string | null;
+      currency?: string | null;
     }) => api.post<Expense>(endpoints.expenses, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: expensesKey });
@@ -65,7 +75,15 @@ export function useUpdateExpense() {
       body,
     }: {
       id: string;
-      body: { date?: string; amount?: number; category?: string; description?: string };
+      body: {
+        date?: string;
+        amount?: number;
+        category?: string;
+        categoryId?: string | null;
+        description?: string | null;
+        receiptUrl?: string | null;
+        currency?: string | null;
+      };
     }) => api.patch<Expense>(endpoints.expense(id), body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: expensesKey });
@@ -88,8 +106,7 @@ export function useDeleteExpense() {
 export function useRestoreExpense() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      api.post<Expense>(endpoints.expenseRestore(id)),
+    mutationFn: (id: string) => api.post<Expense>(endpoints.expenseRestore(id)),
     onSuccess: () => qc.invalidateQueries({ queryKey: expensesKey }),
   });
 }
@@ -97,8 +114,51 @@ export function useRestoreExpense() {
 export function useBulkCreateExpenses() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { expenses: Array<{ date: string; amount: number; category: string; description?: string }> }) =>
-      api.post<Expense[]>(endpoints.expenseBulk, body),
+    mutationFn: (body: {
+      expenses: Array<{
+        date: string;
+        amount: number;
+        category?: string;
+        categoryId?: string;
+        description?: string;
+        receiptUrl?: string | null;
+        currency?: string | null;
+      }>;
+    }) => api.post<Expense[]>(endpoints.expenseBulk, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: expensesKey });
+      qc.invalidateQueries({ queryKey: summaryKey });
+    },
+  });
+}
+export interface BulkUpdateExpensesPayload {
+  ids: string[];
+  date?: string;
+  amount?: number;
+  category?: string;
+  categoryId?: string | null;
+  description?: string | null;
+  receiptUrl?: string | null;
+  currency?: string | null;
+}
+export function useBulkUpdateExpenses() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BulkUpdateExpensesPayload) =>
+      api.patch<BulkUpdateExpensesResponse>(endpoints.expenseBulk, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: expensesKey });
+      qc.invalidateQueries({ queryKey: summaryKey });
+    },
+  });
+}
+export function useBulkDeleteExpenses() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) =>
+      api.deleteWithBody<BulkDeleteExpensesResponse>(endpoints.expenseBulk, {
+        ids,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: expensesKey });
       qc.invalidateQueries({ queryKey: summaryKey });

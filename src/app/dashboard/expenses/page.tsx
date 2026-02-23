@@ -14,6 +14,8 @@ import {
   useUpdateExpense,
   useDeleteExpense,
   useBulkCreateExpenses,
+  useBulkUpdateExpenses,
+  useBulkDeleteExpenses,
   type ExpensesParams,
 } from "@/lib/hooks/use-expenses";
 import {
@@ -373,8 +375,11 @@ function ExpenseForm({
       amount: 0,
       category: "",
       description: "",
+      receiptUrl: "",
+      currency: "",
     },
   });
+  // eslint-disable-next-line react-hooks/incompatible-library -- watch() from react-hook-form is safe here
   const category = watch("category");
 
   return (
@@ -427,6 +432,24 @@ function ExpenseForm({
           </p>
         )}
       </div>
+      <div className="grid gap-2">
+        <Label htmlFor="exp-receipt">Receipt URL (optional)</Label>
+        <Input
+          id="exp-receipt"
+          type="url"
+          {...register("receiptUrl")}
+          placeholder="https://..."
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="exp-currency">Currency (optional, display only)</Label>
+        <Input
+          id="exp-currency"
+          {...register("currency")}
+          placeholder="e.g. INR"
+          maxLength={10}
+        />
+      </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
@@ -450,7 +473,7 @@ export default function ExpensesPage() {
   const [searchInput, setSearchInput] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -460,7 +483,11 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setShowSwipeHint(localStorage.getItem(SWIPE_HINT_SEEN_KEY) !== "1");
+    const t = setTimeout(
+      () => setShowSwipeHint(localStorage.getItem(SWIPE_HINT_SEEN_KEY) !== "1"),
+      0
+    );
+    return () => clearTimeout(t);
   }, []);
 
   const { data: listResponse, isLoading, error } = useExpenses(filters);
@@ -470,18 +497,22 @@ export default function ExpensesPage() {
   const createMutation = useCreateExpense();
   const updateMutation = useUpdateExpense();
   const deleteMutation = useDeleteExpense();
+  const bulkDeleteMutation = useBulkDeleteExpenses();
+  const bulkUpdateMutation = useBulkUpdateExpenses();
 
   useEffect(() => {
     if (searchParams.get("openCreate") === "1") {
-      setCreateOpen(true);
       const url = new URL(window.location.href);
       url.searchParams.delete("openCreate");
       window.history.replaceState({}, "", url.pathname + (url.search || ""));
+      const t = setTimeout(() => setCreateOpen(true), 0);
+      return () => clearTimeout(t);
     }
   }, [searchParams]);
 
   useEffect(() => {
-    setSearchInput(filters.search ?? "");
+    const t = setTimeout(() => setSearchInput(filters.search ?? ""), 0);
+    return () => clearTimeout(t);
   }, [filters.search]);
 
   useEffect(() => {
@@ -526,23 +557,20 @@ export default function ExpensesPage() {
     }
   }
 
-  async function handleBulkDelete() {
+  function handleBulkDelete() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    setBulkDeleting(true);
-    try {
-      for (const id of ids) {
-        await deleteMutation.mutateAsync(id);
-      }
-      toast.success(`Deleted ${ids.length} expense(s).`);
-      setSelectedIds(new Set());
-      setBulkDeleteOpen(false);
-    } catch (err) {
-      const e = err as unknown as ApiErrorPayload;
-      toast.error(e?.message ?? "Failed to delete some expenses.");
-    } finally {
-      setBulkDeleting(false);
-    }
+    bulkDeleteMutation.mutate(ids, {
+      onSuccess: (res) => {
+        toast.success(`Deleted ${res?.deleted ?? ids.length} expense(s).`);
+        setSelectedIds(new Set());
+        setBulkDeleteOpen(false);
+      },
+      onError: (err) => {
+        const e = err as unknown as ApiErrorPayload;
+        toast.error(e?.message ?? "Failed to delete some expenses.");
+      },
+    });
   }
 
   const selectAllRef = useRef<HTMLInputElement>(null);
@@ -572,6 +600,8 @@ export default function ExpensesPage() {
         amount: Number(values.amount),
         category: values.category.trim(),
         description: values.description?.trim() || undefined,
+        receiptUrl: values.receiptUrl?.trim() || undefined,
+        currency: values.currency?.trim() || undefined,
       },
       {
         onSuccess: () => {
@@ -596,6 +626,8 @@ export default function ExpensesPage() {
           amount: Number(values.amount),
           category: values.category.trim(),
           description: values.description?.trim() || undefined,
+          receiptUrl: values.receiptUrl?.trim() || undefined,
+          currency: values.currency?.trim() || undefined,
         },
       },
       {
@@ -1048,6 +1080,13 @@ export default function ExpensesPage() {
                   {selectedIds.size} selected
                 </span>
                 <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBulkEditOpen(true)}
+                >
+                  Edit selected
+                </Button>
+                <Button
                   variant="destructive"
                   size="sm"
                   onClick={() => setBulkDeleteOpen(true)}
@@ -1275,6 +1314,8 @@ export default function ExpensesPage() {
                 amount: editing.amount,
                 category: editing.category,
                 description: editing.description ?? "",
+                receiptUrl: editing.receiptUrl ?? "",
+                currency: editing.currency ?? "",
               }}
               onSubmit={handleUpdate}
               onCancel={() => setEditing(null)}
@@ -1331,13 +1372,26 @@ export default function ExpensesPage() {
             <Button
               variant="destructive"
               onClick={handleBulkDelete}
-              disabled={bulkDeleting}
+              disabled={bulkDeleteMutation.isPending}
             >
-              {bulkDeleting ? "Deleting…" : "Delete selected"}
+              {bulkDeleteMutation.isPending ? "Deleting…" : "Delete selected"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk edit dialog */}
+      <BulkEditDialog
+        open={bulkEditOpen}
+        onOpenChange={setBulkEditOpen}
+        ids={Array.from(selectedIds)}
+        onSuccess={() => {
+          setSelectedIds(new Set());
+          setBulkEditOpen(false);
+        }}
+        bulkUpdateMutation={bulkUpdateMutation}
+        CategorySelect={CategorySelect}
+      />
 
       {/* Bulk import dialog */}
       <BulkImportDialog
@@ -1350,6 +1404,117 @@ export default function ExpensesPage() {
         onError={(msg) => toast.error(msg)}
       />
     </div>
+  );
+}
+
+function BulkEditDialog({
+  open,
+  onOpenChange,
+  ids,
+  onSuccess,
+  bulkUpdateMutation,
+  CategorySelect: CategorySelectComponent,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  ids: string[];
+  onSuccess: () => void;
+  bulkUpdateMutation: ReturnType<typeof useBulkUpdateExpenses>;
+  CategorySelect: typeof CategorySelect;
+}) {
+  const [date, setDate] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (ids.length === 0) return;
+    const body: Parameters<typeof bulkUpdateMutation.mutate>[0] = { ids };
+    if (date.trim() && /^\d{4}-\d{2}-\d{2}$/.test(date.trim()))
+      body.date = date.trim();
+    const am = Number(amount);
+    if (amount.trim() !== "" && Number.isFinite(am)) body.amount = am;
+    if (category.trim()) body.category = category.trim();
+    if (description.trim()) body.description = description.trim();
+    if (Object.keys(body).length <= 1) {
+      toast.error("Fill at least one field to update.");
+      return;
+    }
+    bulkUpdateMutation.mutate(body, {
+      onSuccess: (res) => {
+        toast.success(`Updated ${res?.count ?? ids.length} expense(s).`);
+        onSuccess();
+      },
+      onError: (err) => {
+        const e = err as unknown as ApiErrorPayload;
+        toast.error(e?.message ?? "Bulk update failed.");
+      },
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Edit {ids.length} expense(s)</DialogTitle>
+          <DialogDescription>
+            Set fields to apply to all selected. Leave blank to keep current.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="bulk-date">Date</Label>
+            <Input
+              id="bulk-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="bulk-amount">Amount</Label>
+            <Input
+              id="bulk-amount"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Leave blank to keep"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <CategorySelectComponent
+              value={category}
+              onValueChange={setCategory}
+              label="Category"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="bulk-desc">Description</Label>
+            <Input
+              id="bulk-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Leave blank to keep"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={bulkUpdateMutation.isPending}>
+              {bulkUpdateMutation.isPending ? "Updating…" : "Update selected"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -6,6 +6,8 @@ export interface User {
   id: string;
   email: string;
   name: string | null;
+  currency?: string | null;
+  webhookUrl?: string | null;
 }
 
 export interface Category {
@@ -14,6 +16,7 @@ export interface Category {
   userId: string | null;
   color?: string | null;
   icon?: string | null;
+  deletedAt?: string | null;
 }
 
 export interface Expense {
@@ -21,7 +24,10 @@ export interface Expense {
   date: string;
   amount: number;
   category: string;
+  categoryId?: string | null;
   description?: string | null;
+  receiptUrl?: string | null;
+  currency?: string | null;
   userId: string;
   deletedAt?: string | null;
   createdAt: string;
@@ -35,6 +41,7 @@ export interface Budget {
   year: number;
   month?: number | null;
   limit: number;
+  shareSlug?: string | null;
 }
 
 export interface Recurring {
@@ -99,5 +106,28 @@ export interface BudgetCompare {
 
 export interface RecurringRunResult {
   processed: number;
-  created: Array<{ id: string; date: string; amount: number; category: string }>;
+  created: Array<{
+    id: string;
+    date: string;
+    amount: number;
+    category: string;
+  }>;
+}
+
+/** Budget list item when GET /budgets?includeSpending=true */
+export interface BudgetWithSpending extends Budget {
+  spending?: number;
+  remaining?: number;
+  percentUsed?: number;
+  expenseCount?: number;
+}
+
+export interface BulkUpdateExpensesResponse {
+  data: Expense[];
+  count: number;
+}
+
+export interface BulkDeleteExpensesResponse {
+  success: true;
+  deleted: number;
 }

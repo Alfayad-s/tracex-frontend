@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +14,7 @@ import {
 import { User, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TRACEX_NEW_EXPENSE_EVENT } from "@/lib/shortcuts";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { useTheme } from "@/lib/theme-context";
 
 const LORDICON_BASE = "https://cdn.lordicon.com";
@@ -281,7 +281,7 @@ export default function DashboardLayout({
         role="banner"
       >
         <div className="flex h-14 min-h-[44px] items-center gap-2 px-3 sm:gap-4 sm:px-4 lg:px-6">
-          {/* Mobile: hamburger (left) | title (center) | theme (right) — equal width for alignment */}
+          {/* Mobile: hamburger (left) | title (center) | theme + user (right) */}
           <div className="flex min-w-[44px] flex-1 basis-0 items-center justify-start md:min-w-0 md:flex-initial md:basis-auto">
             <Button
               variant="ghost"
@@ -342,7 +342,7 @@ export default function DashboardLayout({
             >
               <User className="h-4 w-4" aria-hidden />
               <span className="max-w-[120px] truncate md:max-w-[180px]">
-                {user.email}
+                {user.name ?? user.email}
               </span>
             </span>
           </div>
@@ -491,7 +491,7 @@ export default function DashboardLayout({
         className="fixed right-0 bottom-0 left-0 z-30 px-3 pt-4 pb-4 md:hidden"
         aria-label="Mobile navigation"
       >
-        <div className="border-border/50 bg-background/80 supports-[backdrop-filter]:bg-background/70 relative flex items-end justify-between rounded-full border py-3 shadow-[0_-1px_0_0_var(--border)] backdrop-blur-md">
+        <div className="border-border bg-background/90 dark:bg-card dark:border-border relative flex items-end justify-between rounded-full border py-3 shadow-[0_-1px_0_0_var(--border)] backdrop-blur-md">
           <div className="flex flex-1 items-center justify-center">
             <Link
               href="/dashboard/expenses"
@@ -520,7 +520,7 @@ export default function DashboardLayout({
               {React.createElement("lord-icon", {
                 src: "https://cdn.lordicon.com/gzqofmcx.json",
                 trigger: "hover",
-                colors: "primary:#ffffff",
+                colors: resolvedDark ? "primary:#18181b" : "primary:#ffffff",
                 style: { width: 30, height: 30 },
               })}
             </Link>

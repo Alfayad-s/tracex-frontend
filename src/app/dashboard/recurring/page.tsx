@@ -129,6 +129,7 @@ export default function RecurringPage() {
       startDate: format(new Date(), "yyyy-MM-dd"),
     },
   });
+  // eslint-disable-next-line react-hooks/incompatible-library -- watch() from react-hook-form is safe here
   const categoryValue = watch("category");
 
   useEffect(() => {

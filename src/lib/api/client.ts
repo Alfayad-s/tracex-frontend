@@ -33,7 +33,10 @@ export function clearAuthToken(): void {
   localStorage.removeItem("tracex_token");
 }
 
-function handleErrorResponse(response: Response, body: { success?: boolean; error?: string }): never {
+function handleErrorResponse(
+  response: Response,
+  body: { success?: boolean; error?: string }
+): never {
   const message = body?.error ?? response.statusText ?? "Request failed";
   const payload: ApiErrorPayload = { status: response.status, message };
 
@@ -67,7 +70,9 @@ function handleErrorResponse(response: Response, body: { success?: boolean; erro
 
 async function request<T>(
   path: string,
-  options: RequestInit & { params?: Record<string, string | number | undefined> } = {}
+  options: RequestInit & {
+    params?: Record<string, string | number | undefined>;
+  } = {}
 ): Promise<T> {
   const { params, ...init } = options;
   const base = getBaseUrl().replace(/\/$/, "");
@@ -96,7 +101,17 @@ async function request<T>(
     throw new Error("Network error");
   }
 
-  let body: { success?: boolean; data?: T; error?: string; user?: unknown; token?: string };
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  let body: {
+    success?: boolean;
+    data?: T;
+    error?: string;
+    user?: unknown;
+    token?: string;
+  };
   const contentType = response.headers.get("content-type");
   if (contentType?.includes("application/json")) {
     body = (await response.json()) as typeof body;
@@ -109,6 +124,7 @@ async function request<T>(
   }
 
   if ("data" in body && body.success === true) {
+    if ("count" in body) return body as T;
     return body.data as T;
   }
   if ("user" in body && "token" in body && body.success === true) {
@@ -206,7 +222,8 @@ export async function exportExpensesCsv(
     } catch {
       if (text) message = text;
     }
-    if (response.status === 400 && typeof window !== "undefined") toast.error(message);
+    if (response.status === 400 && typeof window !== "undefined")
+      toast.error(message);
     throw { status: response.status, message };
   }
 
@@ -221,18 +238,64 @@ export async function exportExpensesCsv(
   URL.revokeObjectURL(link.href);
 }
 
-export const api = {
-  get: <T>(path: string, params?: Record<string, string | number | undefined>) =>
-    request<T>(path, { method: "GET", params }),
+/** GET without Authorization (e.g. public budget by slug). */
+export async function getPublic<T>(
+  path: string,
+  params?: Record<string, string | number | undefined>
+): Promise<T> {
+  const base = getBaseUrl().replace(/\/$/, "");
+  const url = new URL(path.startsWith("/") ? path : `/${path}`, base);
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
+    });
+  }
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    throw {
+      status: response.status,
+      message: body?.error ?? response.statusText,
+    };
+  }
+  const body = (await response.json()) as T;
+  return body as T;
+}
 
-  getList: <T>(path: string, params?: Record<string, string | number | undefined>) =>
-    requestList<T>(path, params),
+export const api = {
+  get: <T>(
+    path: string,
+    params?: Record<string, string | number | undefined>
+  ) => request<T>(path, { method: "GET", params }),
+
+  getList: <T>(
+    path: string,
+    params?: Record<string, string | number | undefined>
+  ) => requestList<T>(path, params),
 
   post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      method: "POST",
+      body: body ? JSON.stringify(body) : undefined,
+    }),
 
   patch: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      method: "PATCH",
+      body: body ? JSON.stringify(body) : undefined,
+    }),
 
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+
+  /** DELETE with JSON body (e.g. bulk delete with ids). */
+  deleteWithBody: <T>(path: string, body: unknown) =>
+    request<T>(path, {
+      method: "DELETE",
+      body: JSON.stringify(body),
+    }),
 };

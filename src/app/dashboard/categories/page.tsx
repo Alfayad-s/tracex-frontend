@@ -11,6 +11,7 @@ import {
   useCreateCategory,
   useUpdateCategory,
   useDeleteCategory,
+  useRestoreCategory,
 } from "@/lib/hooks/use-categories";
 import {
   categoryFormSchema,
@@ -298,6 +299,7 @@ function CategoryForm({
     resolver: zodResolver(categoryFormSchema),
     defaultValues: defaultValues ?? { name: "", color: "", icon: "" },
   });
+  // eslint-disable-next-line react-hooks/incompatible-library -- watch() from react-hook-form is safe here
   const color = watch("color");
 
   return (
@@ -408,6 +410,7 @@ export default function CategoriesPage() {
   const createMutation = useCreateCategory();
   const updateMutation = useUpdateCategory();
   const deleteMutation = useDeleteCategory();
+  const restoreMutation = useRestoreCategory();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
@@ -467,10 +470,21 @@ export default function CategoriesPage() {
 
   function handleDelete() {
     if (!deleting) return;
-    deleteMutation.mutate(deleting.id, {
+    const id = deleting.id;
+    deleteMutation.mutate(id, {
       onSuccess: () => {
-        toast.success("Category deleted");
         setDeleting(null);
+        toast.success("Category deleted (soft-delete)", {
+          action: {
+            label: "Undo",
+            onClick: () => {
+              restoreMutation.mutate(id, {
+                onSuccess: () => toast.success("Category restored"),
+                onError: () => toast.error("Could not restore category"),
+              });
+            },
+          },
+        });
       },
       onError: (err) => {
         const e = err as unknown as ApiErrorPayload;
